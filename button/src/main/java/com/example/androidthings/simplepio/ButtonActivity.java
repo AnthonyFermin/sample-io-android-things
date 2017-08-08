@@ -16,12 +16,12 @@
 
 package com.example.androidthings.simplepio;
 
-import android.app.Activity;
-import com.google.android.things.pio.Gpio;
-import com.google.android.things.pio.GpioCallback;
-import com.google.android.things.pio.PeripheralManagerService;
 import android.os.Bundle;
 import android.util.Log;
+
+import com.google.android.things.contrib.driver.button.Button;
+import com.google.android.things.contrib.driver.pwmservo.Servo;
+import com.google.android.things.contrib.driver.rainbowhat.RainbowHat;
 
 import java.io.IOException;
 
@@ -29,28 +29,86 @@ import java.io.IOException;
  * Sample usage of the Gpio API that logs when a button is pressed.
  *
  */
-public class ButtonActivity extends Activity {
+public class ButtonActivity extends DeviceInfoActivity {
     private static final String TAG = ButtonActivity.class.getSimpleName();
 
-    private Gpio mButtonGpio;
+    private Button mButtonA;
+    private Button mButtonB;
+    private Button mButtonC;
+    private Servo servo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.i(TAG, "Starting ButtonActivity");
 
-        PeripheralManagerService service = new PeripheralManagerService();
+        connectButtonA();
+        connectButtonB();
+        connectButtonC();
+        connectServo();
+    }
+
+    private void connectServo() {
         try {
-            String pinName = BoardDefaults.getGPIOForButton();
-            mButtonGpio = service.openGpio(pinName);
-            mButtonGpio.setDirection(Gpio.DIRECTION_IN);
-            mButtonGpio.setEdgeTriggerType(Gpio.EDGE_FALLING);
-            mButtonGpio.registerGpioCallback(new GpioCallback() {
+            servo = RainbowHat.openServo();
+            servo.setEnabled(false);
+            servo.setAngleRange(0, 360.0);
+            servo.setPulseDurationRange(0.9, 2.1);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void connectButtonA() {
+        try {
+            String pinName = "BCM21";
+            mButtonA = RainbowHat.openButton(pinName);
+            mButtonA.setOnButtonEventListener(new Button.OnButtonEventListener() {
                 @Override
-                public boolean onGpioEdge(Gpio gpio) {
-                    Log.i(TAG, "GPIO changed, button pressed");
-                    // Return true to continue listening to events
-                    return true;
+                public void onButtonEvent(Button button, boolean pressed) {
+                    try {
+                        if (pressed) {
+                            servo.setEnabled(true);
+                            servo.setAngle(servo.getMaximumAngle());
+                        } else {
+                            servo.setEnabled(false);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        } catch (IOException e) {
+            Log.e(TAG, "Error on PeripheralIO API", e);
+        }
+    }
+
+    private void connectButtonB() {
+        try {
+            String pinName = "BCM20";
+            mButtonC = RainbowHat.openButton(pinName);
+        } catch (IOException e) {
+            Log.e(TAG, "Error on PeripheralIO API", e);
+        }
+    }
+
+    private void connectButtonC() {
+        try {
+            String pinName = "BCM16";
+            mButtonB = RainbowHat.openButton(pinName);
+            mButtonB.setOnButtonEventListener(new Button.OnButtonEventListener() {
+                @Override
+                public void onButtonEvent(Button button, boolean pressed) {
+                    try {
+                        if (pressed) {
+                            servo.setEnabled(true);
+                            servo.setAngle(servo.getMinimumAngle());
+                        } else {
+                            servo.setEnabled(false);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
             });
         } catch (IOException e) {
@@ -61,15 +119,15 @@ public class ButtonActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mButtonGpio != null) {
+        if (mButtonA != null) {
             // Close the Gpio pin
             Log.i(TAG, "Closing Button GPIO pin");
             try {
-                mButtonGpio.close();
+                mButtonA.close();
             } catch (IOException e) {
                 Log.e(TAG, "Error on PeripheralIO API", e);
             } finally {
-                mButtonGpio = null;
+                mButtonA = null;
             }
         }
     }
